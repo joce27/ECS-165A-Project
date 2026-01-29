@@ -19,3 +19,8 @@ class Page:
         self.num_records += 1
         pass
 
+    def read(self, value):
+        pass
+
+    def update(self, value):
+        pass
