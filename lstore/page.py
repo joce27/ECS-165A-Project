@@ -34,7 +34,9 @@ class Page:
         if value < 0 or value >= self.num_records:
             raise RuntimeError("Index out of bounds")
         
+        # compute the start index to read record from
         start = value * INT_SIZE
+        # read 8 bytes from bytearray as one integer with order of bytes matching how it was written
         return int.from_bytes(self.data[start:start + INT_SIZE], byteorder='little')
     
 
