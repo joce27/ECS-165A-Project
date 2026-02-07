@@ -17,7 +17,8 @@ class PageRange:
     :param num_col: int            #number of columns in table
     """
     def __init__(self, num_col, max_base_pages):
-        self.num_col = num_col
+        # add 4 to account for metadata columns
+        self.num_col = 4 + num_col
         self.max_base_pages = max_base_pages
         
         # each column gets a list of pages
@@ -69,8 +70,9 @@ class Table:
     def __init__(self, name, num_columns, key):
         self.name = name
         self.key = key
-        self.num_columns = num_columns
+        self.num_columns = 4 + num_columns
         self.page_directory = {}
+        self.tail_page_directory = {}
         self.index = Index(self)
         self.merge_threshold_pages = 50  # The threshold to trigger a merge
         self.page_ranges = []
@@ -85,7 +87,11 @@ class Table:
         # increment rid_counter to ensure RID uniqueness for every insert
         self.rid_counter += 1
         
-        record = list(record)
+        indirection = 0
+        timestamp = 0
+        schema_encoding = 0
+        
+        record = [indirection, rid, timestamp, schema_encoding] + list(record)
         
         # create page range if there isn't one or if last page range is full
         if not self.page_ranges or not self.page_ranges[-1].base_has_capacity():
@@ -119,9 +125,28 @@ class Table:
         page_range = self.page_ranges[page_range_ind]
         # get base page 
         base_page = page_range.base_pages[col][page_ind]
-        # read the record from base page at offset (row position) and return it
-        return base_page.read(offset)
+        
+        # check indirection column
+        indirection_page = page_range.base_pages[INDIRECTION_COLUMN][page_ind]
+        tail_rid = indirection_page.read(offset)
+        # no tail record, read from base page
+        if tail_rid in [0, None]:
+            return base_page.read(offset)
     
+        # tail record exists, read from tail page
+        tail_page_range_ind, tail_page_ind, tail_offset = self.tail_page_directory[tail_rid]
+        tail_page_range = self.page_ranges[tail_page_range_ind]
+        tail_page = tail_page_range.tail_pages[col][tail_page_ind]
+        
+        # check schema encoding for udated columns
+        schema_page = tail_page_range.base_pages[SCHEMA_ENCODING_COLUMN][tail_page_ind]
+        schema_bitmap = schema_page.read(tail_offset)
+        bit_ind = col - 4
+        if (schema_bitmap >> bit_ind) & 1:
+            return tail_page.read(tail_offset)
+        else:
+            return base_page.read(offset)
+        
     
     # Leave for milestone 2
     def __merge(self):
