@@ -17,7 +17,9 @@ class Page:
     def has_capacity(self):
         return self.num_records < MAX_SIZE
     
-
+    """
+    :param value: int     
+    """ 
     def write(self, value):
         if not self.has_capacity():
             raise RuntimeError("Page is full")
@@ -29,7 +31,9 @@ class Page:
         
         self.num_records += 1
         
-        
+    """
+    :param value: int
+    """     
     def read(self, value):
         if value < 0 or value >= self.num_records:
             raise RuntimeError("Index out of bounds")
