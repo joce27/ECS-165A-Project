@@ -20,7 +20,13 @@ class Database():
     :param key: int             #Index of table key in columns
     """
     def create_table(self, name, num_columns, key_index):
+        # check if table name already exists
+        for table in self.tables:
+            if table.name == name:
+                raise RuntimeError("Table name already exists")
+            
         table = Table(name, num_columns, key_index)
+        self.tables.append(table)
         return table
 
     
@@ -28,11 +34,19 @@ class Database():
     # Deletes the specified table
     """
     def drop_table(self, name):
-        pass
+        for i, table in enumerate(self.tables):
+            if table.name == name:
+                del self.tables[i]
+                return
+        raise RuntimeError("Table not found")
 
     
     """
     # Returns table with the passed name
     """
     def get_table(self, name):
-        pass
+        for table in self.tables:
+            if table.name == name:
+                return table
+        # if table name not found
+        return None
