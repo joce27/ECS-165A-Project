@@ -88,10 +88,10 @@ class Table:
         self.rid_counter += 1
         
         indirection = 0
-        timestamp = 0
+        timestamp = int(time())
         schema_encoding = 0
         
-        record = [indirection, rid, timestamp, schema_encoding] + list(record)
+        record = [rid, indirection, schema_encoding, timestamp] + list(record)
         
         # create page range if there isn't one or if last page range is full
         if not self.page_ranges or not self.page_ranges[-1].base_has_capacity():
@@ -119,11 +119,9 @@ class Table:
     :param col: int     #column number in table
     """ 
     def read(self, rid, col):
-        # read page range index, page index and offset from page directory with rid as key
+        # get record locaiton
         page_range_ind, page_ind, offset = self.page_directory[rid]
-        # get page range
         page_range = self.page_ranges[page_range_ind]
-        # get base page 
         base_page = page_range.base_pages[col][page_ind]
         
         # check indirection column
@@ -146,6 +144,52 @@ class Table:
             return tail_page.read(tail_offset)
         else:
             return base_page.read(offset)
+        
+        
+    """
+    :param rid: int
+    :param *cols: tuple     #updated column values
+    """  
+    def update(self, rid, *cols):
+        # get record location
+        page_range_ind, page_ind, offset = self.page_directory[rid]
+        page_range = self.page_ranges[page_range_ind]
+        
+        base_indirection_page = page_range.base_pages[INDIRECTION_COLUMN][page_ind]
+        # 0 indicates no tail record
+        tail_rid = base_indirection_page.read(offset)
+        
+        new_tail_rid = self.rid_counter
+        self.rid_counter += 1
+        
+        timestamp = int(time())
+        indirection = tail_rid
+        schema_bitmap = 0
+        tail_record = [new_tail_rid, indirection, schema_bitmap, timestamp]
+        
+        # update columns in tail record and update schema encoding bitmap
+        for i , val in enumerate(cols):
+            if val is not None:
+                schema_bitmap |= 1 << i
+                tail_record.append(val)
+            else:
+                tail_record.append(0)
+        
+        tail_record[SCHEMA_ENCODING_COLUMN] = schema_bitmap
+        
+        # write tail record to tail page (create new tail page if latest one has no capacity)
+        for col, value in enumerate(tail_record):
+            last_tail_page = page_range.tail_pages[col][-1]
+            if not last_tail_page.has_capacity():
+                page_range.add_tail_page(col)
+                last_tail_page = page_range.tail_pages[col][-1]
+            last_tail_page.write(value)
+            
+        # update tail page directory
+        page_range_ind = len(self.page_ranges) - 1
+        page_ind = len(page_range.tail_pages[0]) - 1
+        offset = page_range.tail_pages[0][-1].num_records - 1
+        self.page_directory[tail_rid] = (page_range_ind, page_ind, offset)
         
     
     # Leave for milestone 2
